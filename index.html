@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Olympic Tiếng Anh 11 – 2025-2026</title>
+<meta name="description" content="Đề thi Olympic Tiếng Anh 11, Liên cụm trường THPT Hà Nội, năm học 2025–2026 – làm bài trực tuyến.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f3a5f'/%3E%3Ctext x='16' y='22' font-family='Georgia' font-size='17' font-weight='700' fill='%23fff' text-anchor='middle'%3EEn%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+
+<!-- ============ MÀN HÌNH BẮT ĐẦU ============ -->
+<main id="startScreen" class="screen">
+  <div class="card start">
+    <div class="examhead">
+      <div class="eh-left">
+        <div>SỞ GIÁO DỤC VÀ ĐÀO TẠO HÀ NỘI</div>
+        <div class="b">LIÊN CỤM TRƯỜNG THPT</div>
+      </div>
+      <div class="eh-right">
+        <div class="b">KỲ THI OLYMPIC DÀNH CHO HỌC SINH LỚP 10, LỚP 11</div>
+        <div class="b">NĂM HỌC 2025 – 2026</div>
+        <div>Môn thi: <b>TIẾNG ANH 11</b> · Thời gian: <span class="durText">120</span> phút</div>
+      </div>
+    </div>
+
+    <form id="startForm" autocomplete="on">
+      <div class="field">
+        <label for="inName">Họ và tên</label>
+        <input id="inName" name="name" required maxlength="60" placeholder="Ví dụ: Nguyễn Văn An">
+      </div>
+      <div class="field">
+        <label for="inClass">Lớp / Trường</label>
+        <input id="inClass" name="cls" required maxlength="60" placeholder="Ví dụ: 11A1 – THPT Cầu Giấy">
+      </div>
+
+      <ul class="rules">
+        <li>Bài làm <b><span class="durText">120</span> phút</b>, đồng hồ chạy từ lúc bấm bắt đầu. Hết giờ, bài tự nộp.</li>
+        <li>Bài làm ở <b>chế độ toàn màn hình</b>. Mỗi lần thoát toàn màn hình, chuyển tab hoặc chuyển cửa sổ đều <b>bị ghi lại</b> và gửi cho giáo viên.</li>
+        <li>Bôi đen một đoạn chữ rồi bấm <b>Tô sáng</b> để đánh dấu từ khoá. Bấm vào chỗ đã tô để bỏ.</li>
+        <li>Bài được lưu tự động. Lỡ tắt trang, mở lại link và bấm <b>Tiếp tục</b> trên cùng máy, cùng trình duyệt.</li>
+        <li>Được làm lại không giới hạn số lần. Sau mỗi lần nộp sẽ thấy số câu đúng và điểm (thang 20), không hiện đáp án.</li>
+      </ul>
+
+      <div class="actions">
+        <button type="button" id="btnContinue" class="btn ghost" hidden>Tiếp tục bài đang làm</button>
+        <button type="submit" id="btnStart" class="btn primary">Bắt đầu làm bài</button>
+      </div>
+      <p class="formerr" id="startErr" role="alert"></p>
+    </form>
+  </div>
+
+  <div class="card" id="startHistory" hidden>
+    <h3 class="ch">Các lần làm trước</h3>
+    <div class="histwrap"></div>
+  </div>
+</main>
+
+<!-- ============ MÀN HÌNH LÀM BÀI ============ -->
+<div id="examScreen" class="screen" hidden>
+  <header class="topbar">
+    <div class="tb-left">
+      <div class="who"><span id="tbName"></span><small id="tbClass"></small></div>
+    </div>
+    <div class="tb-mid">
+      <div class="timer" id="timer" aria-live="off">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9v4l2.5 2.5M9 2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span id="timerText">--:--</span>
+      </div>
+      <div class="reviewtag" id="reviewTag" hidden></div>
+    </div>
+    <div class="tb-right">
+      <span class="stat" title="Số câu đã làm"><b id="cntDone">0</b>/100</span>
+      <span class="stat out" id="outStat" title="Số lần rời màn hình làm bài">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h11M10 8l4 4-4 4M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <b id="outCnt">0</b></span>
+      <button class="btn small ghost" id="btnPalette" type="button" aria-expanded="false" aria-controls="palette">Danh sách câu</button>
+      <button class="btn small ghost" id="btnClearHl" type="button" title="Xoá tất cả chỗ tô sáng">Xoá tô sáng</button>
+      <button class="btn small primary" id="btnSubmit" type="button">Nộp bài</button>
+      <button class="btn small primary" id="btnCloseReview" type="button" hidden>Đóng xem lại</button>
+    </div>
+  </header>
+
+  <aside id="palette" class="palette" hidden>
+    <div class="pal-head"><b>Danh sách câu</b><span class="legend"><i class="d"></i>Đã làm <i></i>Chưa làm</span></div>
+    <div class="pal-grid" id="palGrid"></div>
+  </aside>
+
+  <div class="reviewbanner" id="reviewBanner" hidden></div>
+
+  <article class="paper" id="paper">
+    <div class="examhead paperhead">
+      <div class="eh-left">
+        <div class="b">SỞ GIÁO DỤC VÀ ĐÀO TẠO HÀ NỘI</div>
+        <div class="b">LIÊN CỤM TRƯỜNG THPT</div>
+        <div class="official">ĐỀ CHÍNH THỨC</div>
+      </div>
+      <div class="eh-right">
+        <div class="b">KỲ THI OLYMPIC DÀNH CHO HỌC SINH<br>LỚP 10, LỚP 11</div>
+        <div class="b">NĂM HỌC 2025 – 2026</div>
+        <div>Môn thi: <b>TIẾNG ANH 11</b></div>
+        <div>Ngày thi: 14/3/2026</div>
+        <div>Thời gian làm bài: 120 phút</div>
+      </div>
+    </div>
+    <div id="examBody"></div>
+  </article>
+</div>
+
+<!-- ============ MÀN HÌNH KẾT QUẢ ============ -->
+<main id="resultScreen" class="screen" hidden>
+  <div class="card result" id="resultCard"></div>
+  <div class="card" id="resultHistory">
+    <h3 class="ch">Lịch sử các lần làm</h3>
+    <div class="histwrap"></div>
+  </div>
+</main>
+
+<!-- ============ LỚP PHỦ ============ -->
+<div class="overlay" id="outOverlay" hidden>
+  <div class="ovbox warn" role="alertdialog" aria-labelledby="ovTitle">
+    <h3 id="ovTitle">Bạn đã rời khỏi màn hình làm bài</h3>
+    <p>Việc này đã được ghi lại. Số lần rời màn hình: <b id="ovCount">0</b>.</p>
+    <p class="muted">Đồng hồ vẫn tiếp tục chạy.</p>
+    <button class="btn primary" id="btnBackFs" type="button">Quay lại làm bài</button>
+  </div>
+</div>
+
+<div class="overlay" id="confirmModal" hidden>
+  <div class="ovbox" role="dialog" aria-labelledby="cfTitle">
+    <h3 id="cfTitle">Nộp bài?</h3>
+    <p id="cfText"></p>
+    <div class="actions">
+      <button class="btn ghost" id="cfNo" type="button">Làm tiếp</button>
+      <button class="btn primary" id="cfYes" type="button">Nộp bài</button>
+    </div>
+  </div>
+</div>
+
+<button type="button" id="hlTip" class="hltip" hidden></button>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="config.js"></script>
+<script src="exam-core.js"></script>
+<script src="content.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
