@@ -577,6 +577,24 @@
   }
   $('#btnCloseReview').onclick = function () { document.body.classList.remove('reviewing'); if (reviewFrom) showResult(reviewFrom); };
 
+  /* ---------- gọi file hứng: fetch, nếu bị chặn thì JSONP ---------- */
+  function jsonp(url) {
+    return new Promise(function (resolve, reject) {
+      var cb = 'oly_cb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6), s = document.createElement('script'), t;
+      function done() { clearTimeout(t); try { delete window[cb]; } catch (e) { window[cb] = undefined; } if (s.parentNode) s.parentNode.removeChild(s); }
+      window[cb] = function (d) { done(); resolve(d); };
+      s.onerror = function () { done(); reject(new Error('Không kết nối được tới file hứng')); };
+      t = setTimeout(function () { done(); reject(new Error('File hứng không phản hồi (quá 25 giây)')); }, 25000);
+      s.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + cb;
+      document.head.appendChild(s);
+    });
+  }
+  function apiGet(params) {
+    var url = CFG.API_URL + '?' + Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k] == null ? '' : params[k]); }).join('&');
+    return fetch(url, { redirect: 'follow' }).then(function (r) { return r.json(); })
+      .catch(function () { return jsonp(url); });
+  }
+
   /* ---------- CHẾ ĐỘ GIÁO VIÊN: xem bài làm của HS ngay trên tờ đề ---------- */
   var T = null, wrongPtr = 0;
   var ICON_OK = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -595,8 +613,7 @@
     $('#reviewBanner').hidden = false; $('#reviewBanner').innerHTML = '<div class="spinner"></div><p style="text-align:center">Đang tải bài làm…</p>';
     show('examScreen'); showView(0);
     if (!CFG.API_URL || /PASTE_/.test(CFG.API_URL)) { $('#reviewBanner').textContent = 'Chưa cấu hình API_URL trong config.js.'; return; }
-    fetch(CFG.API_URL + '?api=review&sid=' + encodeURIComponent(sid) + '&k=' + encodeURIComponent(k), { redirect: 'follow' })
-      .then(function (r) { return r.json(); })
+    apiGet({ api: 'review', sid: sid, k: k })
       .then(function (d) {
         if (!d || !d.ok) throw new Error((d && d.error) || 'Không đọc được dữ liệu');
         T = d; T.k = k; wrongPtr = 0;
@@ -606,7 +623,10 @@
       })
       .catch(function (err) {
         $('#reviewTag').textContent = 'Lỗi';
-        $('#reviewBanner').innerHTML = '<b>Không tải được bài làm.</b> ' + esc(err.message || err) + '<br><span class="muted">Kiểm tra lại link "Xem bài" trong Google Sheet (link phải đủ cả phần <code>&amp;k=…</code>).</span>';
+        var test = CFG.API_URL + '?api=review&sid=' + encodeURIComponent(sid) + '&k=' + encodeURIComponent(k);
+        $('#reviewBanner').innerHTML = '<b>Không tải được bài làm.</b> ' + esc(err.message || err) +
+          '<br><span class="muted">Bấm nút dưới để mở thẳng file hứng. Nếu thấy dòng chữ bắt đầu bằng <code>{"ok":true</code> thì file hứng vẫn chạy; nếu thấy trang báo lỗi của Google, hãy chụp lại trang đó.</span>' +
+          '<div style="margin-top:8px"><a class="btn small primary" target="_blank" rel="noopener" href="' + esc(test) + '">Mở file hứng để kiểm tra</a></div>';
       });
   }
   function teacherRender() {
@@ -711,8 +731,7 @@
     var q = +b.dataset.tq, c = tEff(q), val = c === 1 ? 0.5 : c === 0.5 ? 0 : 1;
     if (val === (T.auto[q] || 0)) val = null;
     b.disabled = true; b.classList.add('busy');
-    fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action: 'override', sid: T.sid, k: T.k, q: q, val: val }), redirect: 'follow' })
-      .then(function (r) { return r.json(); })
+    apiGet({ api: 'override', sid: T.sid, k: T.k, q: q, val: val })
       .then(function (res) {
         if (!res || !res.ok) throw new Error((res && res.error) || 'lỗi');
         T.ov = res.ov || {}; T.sum = res.sum; markQ(q); teacherScore();
