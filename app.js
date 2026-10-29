@@ -132,7 +132,7 @@
   function refreshFilled() {
     $$('#examBody .gap, #examBody .rwin, #examBody .ecin').forEach(function (el) { el.classList.toggle('filled', !!el.value.trim()); });
     var a = readAnswers(), n = 0;
-    $$('#palGrid a').forEach(function (l) { var d = !CORE.isBlank(+l.dataset.p, a[l.dataset.p]); l.classList.toggle('done', d); if (d) n++; });
+    $$('#palGrid a').forEach(function (l) { var d = !CORE.isBlank(+l.dataset.p, a[l.dataset.p]); l.classList.remove('t-ok', 't-half', 't-bad', 't-blank'); l.classList.toggle('done', d); if (d) n++; });
     $('#cntDone').textContent = n;
     if (mode !== 'teacher') VIEWS.forEach(function (v, i) {
       var f = +v.dataset.from, t = +v.dataset.to, c = 0;
@@ -407,7 +407,7 @@
     $('#timer').hidden = false; $('#reviewTag').hidden = true; $('#reviewBanner').hidden = true;
     $('#btnSubmit').hidden = false; $('#btnCloseReview').hidden = true; $('#btnClearHl').hidden = false;
     $('#outStat').hidden = false;
-    setDisabled(false); writeAnswers(cur.answers); HL.applyAll(cur.hl);
+    clearMarks(); setDisabled(false); writeAnswers(cur.answers); HL.applyAll(cur.hl);
     updOut(); show('examScreen'); showView(cur.view || 0); startTimer();
     if (cur.deadline <= Date.now()) submit(true);
   }
@@ -460,7 +460,7 @@
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (!res || !res.ok) throw new Error((res && res.error) || 'Máy chủ không nhận bài');
-        entry.result = { correct: res.correct, half: res.half || 0, score: res.score, parts: res.parts, sections: res.sections };
+        entry.result = { correct: res.correct, half: res.half || 0, score: res.score, parts: res.parts, sections: res.sections, marks: res.marks || null };
         if (res.attemptNo) entry.serverNo = res.attemptNo;
         entry.sent = true; entry.err = null; saveStore();
       })
@@ -560,9 +560,19 @@
     $('#btnSubmit').hidden = true; $('#btnCloseReview').hidden = false; $('#btnClearHl').hidden = true; $('#outStat').hidden = true;
     $('#reviewBanner').hidden = false;
     $('#reviewBanner').innerHTML = '<b>Lần ' + e.no + '</b> · nộp lúc ' + fmtDate(e.at) + ' · ' +
-      (e.result ? e.result.correct + '/100 câu đúng · <b>' + fmtScore(e.result.score) + '/20</b>' : 'chưa chấm') +
-      ' · rời màn hình ' + e.out.n + ' lần. <span class="muted">Đây là bài làm của bạn; đáp án không được hiển thị.</span>';
-    writeAnswers(e.answers); setDisabled(true); HL.applyAll(e.hl || {});
+      (e.result ? '<b>' + fmtScore(e.result.score) + '/20</b> · ' + e.result.correct + ' câu đúng' + (e.result.half ? ' · ' + e.result.half + ' câu nửa điểm' : '') : 'chưa chấm') +
+      ' · rời màn hình ' + e.out.n + ' lần' +
+      (e.result && e.result.marks ? '<span class="legend2 rv"><i class="lg ok"></i>Đúng <i class="lg half"></i>Nửa điểm <i class="lg bad"></i>Sai <i class="lg blank"></i>Bỏ trống</span>' +
+        '<div class="muted rvnote">Mỗi câu đã được đánh dấu đúng/sai; đáp án đúng không được hiển thị. Bấm "Danh sách câu" để thấy toàn bộ.</div>'
+       : '<div class="muted rvnote">Lần làm này nộp trước khi có tính năng đánh dấu từng câu, nên chỉ xem được bài làm.</div>');
+    clearMarks(); writeAnswers(e.answers); setDisabled(true); HL.applyAll(e.hl || {});
+    var mk = e.result && e.result.marks;
+    if (mk) {
+      ecHeader();
+      var ef = function (q) { return mk[q] || 0; };
+      for (var q = 1; q <= CORE.TOTAL_Q; q++) markOne(q, ef(q), CORE.isBlank(q, e.answers[q]), false, null, false);
+      colorNav(ef, e.answers);
+    }
     show('examScreen'); showView(0);
   }
   $('#btnCloseReview').onclick = function () { document.body.classList.remove('reviewing'); if (reviewFrom) showResult(reviewFrom); };
@@ -603,10 +613,7 @@
     $('#tbName').textContent = T.name;
     $('#tbClass').textContent = T.cls + ' · lần ' + T.no;
     writeAnswers(T.answers); setDisabled(true); HL.applyAll(T.hl || {});
-    $$('#examBody .tmk, #examBody .tkey, #examBody .tres, #ecKeys').forEach(function (x) { x.remove(); });
-    var ecHead = $('#examBody table.ec thead tr');
-    if (ecHead && !ecHead.querySelector('.tres')) ecHead.insertAdjacentHTML('beforeend', '<th class="tres">Chấm</th>');
-    var eg = $('#examBody table.ec tr.eg'); if (eg && !eg.querySelector('.tres')) eg.insertAdjacentHTML('beforeend', '<td class="tres"></td>');
+    clearMarks(); ecHeader();
     for (var q = 1; q <= CORE.TOTAL_Q; q++) markQ(q);
     var ecKeys = [];
     for (var e = 26; e <= 30; e++) ecKeys.push((T.keys[e] || []).join(' / '));
@@ -616,51 +623,70 @@
   }
   function keyText(q) { return (T.keys[q] || []).join('  /  '); }
   function markQ(q) {
+    markOne(q, tEff(q), CORE.isBlank(q, T.answers[q]), tManual(q), T.keys[q] || [], true);
+  }
+  /* Đánh dấu 1 câu trên tờ đề. keys = null → không hiện đáp án (HS xem lại); interactive = nút chấm tay */
+  function markOne(q, ok, blank, man, keys, interactive) {
     var m = CORE.META[q], el = document.getElementById('q' + q); if (!el) return;
     $$('[data-tq="' + q + '"]', el).forEach(function (x) { x.remove(); });
     if (el.tagName === 'TR') $$('.tres', el).forEach(function (x) { x.remove(); });
-    var ok = tEff(q), blank = CORE.isBlank(q, T.answers[q]), man = tManual(q);
     var st = ok === 1 ? 'ok' : ok === 0.5 ? 'half' : (blank ? 'blank' : 'bad');
-    var btn = '<button type="button" class="tmk ' + st + (man ? ' manual' : '') + '" data-tq="' + q + '" title="Bấm để chấm tay câu ' + q + ' (Đúng → Nửa điểm → Sai)">' +
-      (ok === 1 ? ICON_OK : ok === 0.5 ? ICON_HALF : ICON_BAD) + '<span>' + tLabel(ok, blank) + '</span>' + (man ? '<i>chấm tay</i>' : '') + '</button>';
-    var key = ok === 1 ? '' : '<span class="tkey" data-tq="' + q + '">Đáp án: <b>' + esc(keyText(q)) + '</b></span>';
+    var tag = interactive ? 'button' : 'span';
+    var btn = '<' + tag + (interactive ? ' type="button"' : '') + ' class="tmk ' + st + (man ? ' manual' : '') + (interactive ? '' : ' static') + '" data-tq="' + q + '"' +
+      (interactive ? ' title="Bấm để chấm tay câu ' + q + ' (Đúng → Nửa điểm → Sai)"' : '') + '>' +
+      (ok === 1 ? ICON_OK : ok === 0.5 ? ICON_HALF : ICON_BAD) + '<span>' + tLabel(ok, blank) + '</span>' + (man ? '<i>chấm tay</i>' : '') + '</' + tag + '>';
+    var kt = keys ? keys.join('  /  ') : '';
+    var key = (keys && ok !== 1) ? '<span class="tkey" data-tq="' + q + '">Đáp án: <b>' + esc(kt) + '</b></span>' : '';
     $$('input, textarea', el).forEach(function (f) { f.classList.remove('r-ok', 'r-half', 'r-bad'); if (f.value && f.type !== 'radio') f.classList.add(ok === 1 ? 'r-ok' : ok === 0.5 ? 'r-half' : 'r-bad'); });
     if (m.type === 'choice' && el.querySelector('input[type=radio]')) {
-      var ks = (T.keys[q] || []).map(function (x) { return String(x).toUpperCase(); });
+      var ks = (keys || []).map(function (x) { return String(x).toUpperCase(); });
       $$('label.ch', el).forEach(function (l) {
         var inp = l.querySelector('input');
-        l.classList.toggle('is-key', ks.indexOf(inp.value.toUpperCase()) >= 0);
-        l.classList.toggle('pick-ok', inp.checked && !!ok);
-        l.classList.toggle('pick-bad', inp.checked && !ok);
+        l.classList.toggle('is-key', !!keys && ks.indexOf(inp.value.toUpperCase()) >= 0);
+        l.classList.toggle('pick-ok', inp.checked && ok === 1);
+        l.classList.toggle('pick-bad', inp.checked && ok !== 1);
       });
       el.insertAdjacentHTML(el.querySelector('.choices.word') ? 'beforeend' : 'afterbegin', btn);
     } else if (m.type === 'choice') {
-      var s = el.querySelector('input.letter'); s.insertAdjacentHTML('afterend', btn + key);
+      el.querySelector('input.letter').insertAdjacentHTML('afterend', btn + key);
     } else if (m.type === 'ec') {
       el.insertAdjacentHTML('beforeend', '<td class="tres">' + btn + '</td>');
     } else if (m.type === 'rw') {
       el.insertAdjacentHTML('afterbegin', btn);
-      if (key) el.insertAdjacentHTML('beforeend', '<div class="tkey block" data-tq="' + q + '">Đáp án (phần điền): <b>' + esc(keyText(q)) + '</b></div>');
+      if (key) el.insertAdjacentHTML('beforeend', '<div class="tkey block" data-tq="' + q + '">Đáp án (phần điền): <b>' + esc(kt) + '</b></div>');
     } else {
-      var inp2 = el.querySelector('input'); inp2.insertAdjacentHTML('afterend', btn + key);
+      el.querySelector('input').insertAdjacentHTML('afterend', btn + key);
     }
+  }
+  function clearMarks() {
+    $$('#examBody .tmk, #examBody .tkey, #examBody .tres, #ecKeys').forEach(function (x) { x.remove(); });
+    $$('#examBody .r-ok, #examBody .r-half, #examBody .r-bad').forEach(function (x) { x.classList.remove('r-ok', 'r-half', 'r-bad'); });
+    $$('#examBody .is-key, #examBody .pick-ok, #examBody .pick-bad').forEach(function (x) { x.classList.remove('is-key', 'pick-ok', 'pick-bad'); });
+  }
+  function ecHeader() {
+    var ecHead = $('#examBody table.ec thead tr');
+    if (ecHead && !ecHead.querySelector('.tres')) ecHead.insertAdjacentHTML('beforeend', '<th class="tres">Kết quả</th>');
+    var eg = $('#examBody table.ec tr.eg'); if (eg && !eg.querySelector('.tres')) eg.insertAdjacentHTML('beforeend', '<td class="tres"></td>');
+  }
+  function colorNav(effFn, answers) {
+    $$('#palGrid a').forEach(function (l) {
+      var q = +l.dataset.p, ok = effFn(q), blank = CORE.isBlank(q, answers[q]);
+      l.classList.remove('done'); l.classList.toggle('t-ok', ok === 1); l.classList.toggle('t-half', ok === 0.5); l.classList.toggle('t-bad', !ok && !blank); l.classList.toggle('t-blank', !ok && blank);
+    });
+    VIEWS.forEach(function (v, i) {
+      var f = +v.dataset.from, t = +v.dataset.to, pts = 0;
+      for (var q = f; q <= t; q++) pts += effFn(q);
+      var b = $$('#secNav .sn')[i], r = pts / (t - f + 1);
+      b.querySelector('.snc').textContent = String(pts).replace('.', ',') + '/' + (t - f + 1);
+      b.classList.remove('full', 'some'); b.classList.toggle('t-good', r >= 0.8); b.classList.toggle('t-mid', r >= 0.5 && r < 0.8); b.classList.toggle('t-bad', r < 0.5);
+    });
   }
   function teacherScore() {
     var s = T.sum;
     $('#reviewTag').innerHTML = '<b>' + fmtScore(s.score) + '</b>/20 · ' + s.correct + ' câu đúng' + (s.half ? ' · ' + s.half + ' nửa điểm' : '');
     var tp = $('#tParts');
     if (tp) tp.innerHTML = CORE.PARTS.map(function (p) { var x = s.parts[p.id]; return '<span class="chip">Part ' + p.id + ': <b>' + fmtScore(x.score) + '</b>/' + p.max + ' <span class="muted">(' + x.correct + '/' + x.total + (x.half ? ', ' + x.half + ' nửa' : '') + ')</span></span>'; }).join('');
-    $$('#palGrid a').forEach(function (l) {
-      var q = +l.dataset.p, ok = tEff(q), blank = CORE.isBlank(q, T.answers[q]);
-      l.classList.remove('done'); l.classList.toggle('t-ok', ok === 1); l.classList.toggle('t-half', ok === 0.5); l.classList.toggle('t-bad', !ok && !blank); l.classList.toggle('t-blank', !ok && blank);
-    });
-    VIEWS.forEach(function (v, i) {
-      var f = +v.dataset.from, t = +v.dataset.to, pts = 0;
-      for (var q = f; q <= t; q++) pts += tEff(q);
-      var b = $$('#secNav .sn')[i], r = pts / (t - f + 1);
-      b.querySelector('.snc').textContent = String(pts).replace('.', ',') + '/' + (t - f + 1);
-      b.classList.remove('full', 'some'); b.classList.toggle('t-good', r >= 0.8); b.classList.toggle('t-mid', r >= 0.5 && r < 0.8); b.classList.toggle('t-bad', r < 0.5);
-    });
+    colorNav(tEff, T.answers);
   }
   function teacherBanner() {
     var h = '<div class="tb-row"><div><div class="tb-name">' + esc(T.name) + ' <span class="muted">– lần ' + esc(T.no) + '</span></div>' +

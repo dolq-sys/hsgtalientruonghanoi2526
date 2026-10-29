@@ -312,20 +312,20 @@ mark.hlm { background: var(--hl); color: inherit; border-radius: 3px; padding: 0
 .gapwrap .tmk, .gapbox .tmk, .mrow .tmk { padding: 4px; }
 .qc > .tmk { float: right; margin: 2px 0 6px 10px; }
 .qc:has(.choices.word) > .tmk { float: none; margin-left: 12px; flex: none; }
-.teacher .gapwrap { white-space: normal; }
+.reviewing .gapwrap { white-space: normal; }
 .tkey { display: inline; font-family: var(--sans); font-size: 14px; color: var(--ok); background: #eff8f2; border: 1px dashed #93c7a5; border-radius: 6px; padding: 2px 7px; margin-right: 4px; line-height: 1.5; }
 .tkey.block { display: block; margin: 10px 0 0 44px; padding: 7px 12px; }
 #ecKeys.tkey.block { margin: 12px 0 0; }
-.teacher .r-ok { background: var(--ok-soft) !important; border-color: var(--ok) !important; -webkit-text-fill-color: var(--ok) !important; color: var(--ok) !important; }
-.teacher .r-half { background: var(--half-soft) !important; border-color: #e0a720 !important; -webkit-text-fill-color: var(--half) !important; color: var(--half) !important; }
-.teacher .r-bad { background: var(--warn-soft) !important; border-color: var(--warn) !important; -webkit-text-fill-color: var(--warn) !important; color: var(--warn) !important; text-decoration: line-through; text-decoration-thickness: 1px; }
-.teacher .choices .ch.is-key { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
-.teacher .ch.is-key .cl { border-color: var(--ok); color: var(--ok); }
-.teacher .choices .ch.pick-ok, .teacher .choices .ch.pick-ok:hover { background: var(--ok-soft); border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
-.teacher .ch.pick-ok .cl { background: var(--ok); border-color: var(--ok); color: #fff; }
-.teacher .choices .ch.pick-bad, .teacher .choices .ch.pick-bad:hover { background: var(--warn-soft); border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset; }
-.teacher .ch.pick-bad .cl { background: var(--warn); border-color: var(--warn); color: #fff; }
-.teacher .ch.pick-bad .ct { color: var(--warn); text-decoration: line-through; }
+.reviewing .r-ok { background: var(--ok-soft) !important; border-color: var(--ok) !important; -webkit-text-fill-color: var(--ok) !important; color: var(--ok) !important; }
+.reviewing .r-half { background: var(--half-soft) !important; border-color: #e0a720 !important; -webkit-text-fill-color: var(--half) !important; color: var(--half) !important; }
+.reviewing .r-bad { background: var(--warn-soft) !important; border-color: var(--warn) !important; -webkit-text-fill-color: var(--warn) !important; color: var(--warn) !important; text-decoration: line-through; text-decoration-thickness: 1px; }
+.reviewing .choices .ch.is-key { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
+.reviewing .ch.is-key .cl { border-color: var(--ok); color: var(--ok); }
+.reviewing .choices .ch.pick-ok, .reviewing .choices .ch.pick-ok:hover { background: var(--ok-soft); border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
+.reviewing .ch.pick-ok .cl { background: var(--ok); border-color: var(--ok); color: #fff; }
+.reviewing .choices .ch.pick-bad, .reviewing .choices .ch.pick-bad:hover { background: var(--warn-soft); border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset; }
+.reviewing .ch.pick-bad .cl { background: var(--warn); border-color: var(--warn); color: #fff; }
+.reviewing .ch.pick-bad .ct { color: var(--warn); text-decoration: line-through; }
 .ec th.tres, .ec td.tres { width: 96px; text-align: center; }
 .pal-grid a.t-ok { background: var(--ok); border-color: var(--ok); color: #fff; }
 .pal-grid a.t-half { background: #e0a720; border-color: #e0a720; color: #fff; }
@@ -371,3 +371,10 @@ mark.hlm { background: var(--hl); color: inherit; border-radius: 3px; padding: 0
   .palette { right: 8px; left: 8px; width: auto; }
   .secs .bar { width: 60px; }
 }
+
+/* HS xem lại: nhãn đúng/sai tĩnh */
+.tmk.static { cursor: default; }
+.tmk.static:hover { filter: none; }
+.lg.blank { background: #dfe2e8; }
+.legend2.rv { margin-left: 10px; color: var(--ink-2); }
+.rvnote { font-size: 13px; margin-top: 2px; }
