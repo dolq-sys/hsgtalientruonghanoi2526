@@ -634,6 +634,36 @@
           '<div style="margin-top:8px"><a class="btn small primary" target="_blank" rel="noopener" href="' + esc(test) + '">Mở file hứng để kiểm tra</a></div>';
       });
   }
+  /* Link "Xem bài" mới: toàn bộ bài làm nằm sau dấu # → không cần gọi file hứng để xem */
+  function b64urlDecode(str) {
+    str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '=';
+    var bin = atob(str), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+  function teacherFromLink(b64) {
+    mode = 'teacher';
+    document.body.classList.add('reviewing', 'teacher');
+    $('#timer').hidden = true; $('#btnSubmit').hidden = true; $('#btnClearHl').hidden = true; $('#btnCloseReview').hidden = true;
+    $('#outStat').hidden = true; $$('.tonly').forEach(function (b) { b.hidden = false; });
+    $('#reviewTag').hidden = false; $('#reviewBanner').hidden = false;
+    show('examScreen'); showView(0);
+    try {
+      var d = JSON.parse(b64urlDecode(b64)), auto = {};
+      for (var q = 1; q <= CORE.TOTAL_Q; q++) { var c = d.m.charAt(q - 1); auto[q] = c === '1' ? 1 : c === 'h' ? 0.5 : 0; }
+      T = {
+        ok: true, fromLink: true, sid: d.s, k: d.k, name: d.n, cls: d.c, no: d.no, time: d.t, dur: d.d, timeUp: d.u, outN: d.o, outS: d.os,
+        outLog: (d.l || []).map(function (x) { return { t: x[0], type: OUT_LABEL[x[1]] || x[1], s: x[2] }; }),
+        answers: d.a || {}, hl: d.h || {}, auto: auto, ov: d.v || {}, keys: d.y || {}
+      };
+      T.sum = CORE.summarize(T.auto, T.ov);
+      wrongPtr = 0; document.title = 'Bài làm – ' + T.name;
+      teacherRender();
+    } catch (err) {
+      $('#reviewTag').textContent = 'Lỗi';
+      $('#reviewBanner').innerHTML = '<b>Link "Xem bài" bị thiếu hoặc hỏng.</b> <span class="muted">Trong Google Sheet, chọn menu Olympic Anh 11 → Tạo lại link "Xem bài" cho mọi dòng, rồi bấm lại.</span>';
+    }
+  }
   function teacherRender() {
     $('#tbName').textContent = T.name;
     $('#tbClass').textContent = T.cls + ' · lần ' + T.no;
@@ -660,7 +690,7 @@
     var btn = '<' + tag + (interactive ? ' type="button"' : '') + ' class="tmk ' + st + (man ? ' manual' : '') + (interactive ? '' : ' static') + '" data-tq="' + q + '"' +
       (interactive ? ' title="Bấm để chấm tay câu ' + q + ' (Đúng → Nửa điểm → Sai)"' : '') + '>' +
       (ok === 1 ? ICON_OK : ok === 0.5 ? ICON_HALF : ICON_BAD) + '<span>' + tLabel(ok, blank) + '</span>' + (man ? '<i>chấm tay</i>' : '') + '</' + tag + '>';
-    var kt = keys ? keys.join('  /  ') : '';
+    var kt = keys ? keys.join('   hoặc   ').replace(/\(([^()]*)\)/g, function (_, x) { return '(' + x.split('|').map(function (s) { return s || '∅'; }).join(' / ') + ')'; }) : '';
     var key = (keys && ok !== 1) ? '<span class="tkey" data-tq="' + q + '">Đáp án: <b>' + esc(kt) + '</b></span>' : '';
     $$('input, textarea', el).forEach(function (f) { f.classList.remove('r-ok', 'r-half', 'r-bad'); if (f.value && f.type !== 'radio') f.classList.add(ok === 1 ? 'r-ok' : ok === 0.5 ? 'r-half' : 'r-bad'); });
     if (m.type === 'choice' && el.querySelector('input[type=radio]')) {
@@ -716,7 +746,7 @@
   function teacherBanner() {
     var h = '<div class="tb-row"><div><div class="tb-name">' + esc(T.name) + ' <span class="muted">– lần ' + esc(T.no) + '</span></div>' +
       '<div class="muted">' + esc(T.cls) + ' · nộp lúc ' + esc(T.time) + ' · làm trong ' + esc(T.dur) + ' phút' + (T.timeUp ? ' (hết giờ, tự nộp)' : '') + '</div></div>' +
-      '<div class="tb-nav"><button class="btn small ghost" id="tPrev"' + (T.prev ? '' : ' disabled') + '>&larr; Bài trước</button><button class="btn small ghost" id="tNext"' + (T.next ? '' : ' disabled') + '>Bài sau &rarr;</button></div></div>' +
+      (T.fromLink ? '' : '<div class="tb-nav"><button class="btn small ghost" id="tPrev"' + (T.prev ? '' : ' disabled') + '>&larr; Bài trước</button><button class="btn small ghost" id="tNext"' + (T.next ? '' : ' disabled') + '>Bài sau &rarr;</button></div>') + '</div>' +
       '<div class="tb-parts" id="tParts"></div>' +
       '<div class="tb-row2"><span class="' + (T.outN ? 'warnc' : '') + '">Rời màn hình: <b>' + esc(T.outN) + ' lần</b> · ' + esc(T.outS) + ' giây</span>' +
       '<span class="legend2"><i class="lg ok"></i>Đúng <i class="lg half"></i>Nửa điểm <i class="lg bad"></i>Sai <i class="lg key"></i>Đáp án đúng <i class="lg hl"></i>HS tô sáng</span></div>';
@@ -727,8 +757,8 @@
     }
     h += '<p class="muted tnote">Bấm vào nút kết quả cạnh mỗi câu để chấm tay (Đúng → Nửa điểm → Sai); điểm trong Google Sheet cập nhật luôn.</p>';
     $('#reviewBanner').innerHTML = h;
-    $('#tPrev').onclick = function () { if (T.prev) teacherLoad(T.prev, T.k); };
-    $('#tNext').onclick = function () { if (T.next) teacherLoad(T.next, T.k); };
+    if ($('#tPrev')) $('#tPrev').onclick = function () { if (T.prev) teacherLoad(T.prev, T.k); };
+    if ($('#tNext')) $('#tNext').onclick = function () { if (T.next) teacherLoad(T.next, T.k); };
   }
   $('#examBody').addEventListener('click', function (ev) {
     var b = ev.target.closest && ev.target.closest('.tmk'); if (!b || mode !== 'teacher' || !T) return;
@@ -754,7 +784,8 @@
 
   /* ---------- khởi động ---------- */
   var QS = new URLSearchParams(location.search);
-  if (QS.get('xem') && QS.get('k')) teacherLoad(QS.get('xem'), QS.get('k'));
+  if (location.hash.indexOf('#xem=') === 0) teacherFromLink(location.hash.slice(5));
+  else if (QS.get('xem') && QS.get('k')) teacherLoad(QS.get('xem'), QS.get('k'));
   else { refreshStart(); retryPending(); }
   window.addEventListener('beforeunload', function (e) { if (mode === 'doing') { e.preventDefault(); e.returnValue = ''; } });
 })();
