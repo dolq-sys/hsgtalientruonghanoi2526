@@ -55,14 +55,48 @@
 
   /* ---------- dựng đề ---------- */
   $('#examBody').innerHTML = EXAM_CONTENT.html;
+  var VIEWS = $$('#examBody .view'), curView = 0;
+  (function buildNav() {
+    var h = '', last = '';
+    VIEWS.forEach(function (v, i) {
+      if (v.dataset.part !== last) { h += (i ? '<span class="snsep"></span>' : '') + '<span class="snpart">' + v.dataset.part + '</span>'; last = v.dataset.part; }
+      h += '<button type="button" class="sn" data-v="' + i + '"><span class="snt">' + v.dataset.short + '</span><span class="snr">' + v.dataset.from + '–' + v.dataset.to + '</span><span class="snc"></span></button>';
+    });
+    $('#secNav').innerHTML = h;
+    $('#secNav').addEventListener('click', function (e) { var b = e.target.closest('.sn'); if (b) showView(+b.dataset.v); });
+  })();
+  function viewOfQ(q) { for (var i = 0; i < VIEWS.length; i++) if (q >= +VIEWS[i].dataset.from && q <= +VIEWS[i].dataset.to) return i; return 0; }
+  function showView(i, noFocus) {
+    i = Math.max(0, Math.min(VIEWS.length - 1, i)); curView = i;
+    VIEWS.forEach(function (v, k) { v.classList.toggle('active', k === i); });
+    $$('#secNav .sn').forEach(function (b, k) { b.classList.toggle('active', k === i); if (k === i) b.scrollIntoView({ block: 'nearest', inline: 'center' }); });
+    var v = VIEWS[i];
+    $('#botInfo').innerHTML = '<b>Câu ' + v.dataset.from + '–' + v.dataset.to + '</b><span>Phần ' + (i + 1) + '/' + VIEWS.length + '</span>';
+    $('#btnPrevV').disabled = i === 0; $('#btnNextV').disabled = i === VIEWS.length - 1;
+    $$('.rwin', v).forEach(autoGrow);
+    if (cur && mode === 'doing') { cur.view = i; saveStoreSoon(); }
+    HL.hide();
+  }
+  function goToQ(q) {
+    showView(viewOfQ(q));
+    var el = document.getElementById('q' + q); if (!el) return;
+    setTimeout(function () {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 1300);
+      var f = el.matches('input,textarea') ? el : el.querySelector('input:not([type=radio]),textarea');
+      if (f && mode === 'doing') setTimeout(function () { f.focus({ preventScroll: true }); }, 350);
+    }, 30);
+  }
+  $('#btnPrevV').onclick = function () { showView(curView - 1); };
+  $('#btnNextV').onclick = function () { showView(curView + 1); };
+  var saveSoonT; function saveStoreSoon() { clearTimeout(saveSoonT); saveSoonT = setTimeout(saveStore, 400); }
   (function buildPalette() {
     var g = $('#palGrid'), h = '';
     for (var q = 1; q <= 100; q++) h += '<a href="#q' + q + '" data-p="' + q + '">' + q + '</a>';
     g.innerHTML = h;
     g.addEventListener('click', function (e) {
       var a = e.target.closest('a'); if (!a) return; e.preventDefault();
-      var el = document.getElementById('q' + a.dataset.p);
-      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); var f = el.matches('input,select,textarea') ? el : el.querySelector('input:not([type=radio]),select,textarea'); if (f && mode === 'doing') setTimeout(function () { f.focus({ preventScroll: true }); }, 350); }
+      goToQ(+a.dataset.p);
       if (window.innerWidth < 760) togglePalette(false);
     });
   })();
@@ -76,7 +110,7 @@
   function readAnswers() {
     var a = {};
     $$('#examBody input[type=radio]:checked').forEach(function (r) { a[r.dataset.q] = r.value; });
-    $$('#examBody .gap, #examBody .sel, #examBody .rwin').forEach(function (el) { if (el.value.trim()) a[el.dataset.q] = el.value.trim(); });
+    $$('#examBody .gap, #examBody .rwin').forEach(function (el) { if (el.value.trim()) a[el.dataset.q] = el.value.trim(); });
     $$('#examBody .ecin').forEach(function (el) {
       if (!el.value.trim()) return;
       var q = el.dataset.q; a[q] = a[q] || {}; a[q][el.dataset.f] = el.value.trim();
@@ -86,7 +120,7 @@
   function writeAnswers(a) {
     a = a || {};
     $$('#examBody input[type=radio]').forEach(function (r) { r.checked = a[r.dataset.q] === r.value; });
-    $$('#examBody .gap, #examBody .sel, #examBody .rwin').forEach(function (el) { el.value = a[el.dataset.q] || ''; });
+    $$('#examBody .gap, #examBody .rwin').forEach(function (el) { el.value = a[el.dataset.q] || ''; });
     $$('#examBody .ecin').forEach(function (el) { var v = a[el.dataset.q]; el.value = (v && v[el.dataset.f]) || ''; });
     $$('#examBody .rwin').forEach(autoGrow);
     refreshFilled();
@@ -96,14 +130,27 @@
   }
   function autoGrow(t) { if (!t.offsetParent) return; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
   function refreshFilled() {
-    $$('#examBody .gap, #examBody .sel, #examBody .rwin, #examBody .ecin').forEach(function (el) { el.classList.toggle('filled', !!el.value.trim()); });
+    $$('#examBody .gap, #examBody .rwin, #examBody .ecin').forEach(function (el) { el.classList.toggle('filled', !!el.value.trim()); });
     var a = readAnswers(), n = 0;
     $$('#palGrid a').forEach(function (l) { var d = !CORE.isBlank(+l.dataset.p, a[l.dataset.p]); l.classList.toggle('done', d); if (d) n++; });
     $('#cntDone').textContent = n;
+    if (mode !== 'teacher') VIEWS.forEach(function (v, i) {
+      var f = +v.dataset.from, t = +v.dataset.to, c = 0;
+      for (var q = f; q <= t; q++) if (!CORE.isBlank(q, a[q])) c++;
+      var b = $$('#secNav .sn')[i]; b.querySelector('.snc').textContent = c + '/' + (t - f + 1);
+      b.classList.toggle('full', c === t - f + 1); b.classList.toggle('some', c > 0 && c < t - f + 1);
+      b.classList.remove('t-good', 't-mid', 't-bad');
+    });
   }
   var saveT;
   function onEdit(e) {
     if (mode !== 'doing') return;
+    var t = e.target;
+    if (e.type === 'input' && t.dataset && t.dataset.allow) { // ô gõ 1 ký tự: chỉ nhận chữ/số hợp lệ
+      var v = t.value.toUpperCase().replace(new RegExp('[^' + t.dataset.allow + ']', 'g'), '').slice(-1);
+      if (t.value !== v) t.value = v;
+      if (v) { var all = $$('input[data-allow]', VIEWS[curView]), k = all.indexOf(t); if (k >= 0 && all[k + 1] && t.classList.contains('letter')) all[k + 1].focus(); }
+    }
     if (e.target.classList.contains('rwin')) autoGrow(e.target);
     refreshFilled();
     clearTimeout(saveT);
@@ -111,7 +158,14 @@
   }
   $('#examBody').addEventListener('input', onEdit);
   $('#examBody').addEventListener('change', onEdit);
-  $('#examBody').addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.classList.contains('rwin')) e.preventDefault(); });
+  $('#examBody').addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (e.key === 'Enter' && t.matches('.rwin, .gap, .ecin')) { // Enter = sang ô tiếp theo
+      e.preventDefault();
+      var all = $$('.gap, .ecin, .rwin', VIEWS[curView]).filter(function (x) { return !x.disabled; }), k = all.indexOf(t);
+      if (all[k + 1]) all[k + 1].focus();
+    }
+  });
 
   /* ---------- tô sáng ---------- */
   var HL = (function () {
@@ -119,6 +173,7 @@
     function okNode(n, root) {
       for (var p = n.parentNode; p && p !== root; p = p.parentNode) {
         if (/^(SELECT|OPTION|TEXTAREA|BUTTON|SCRIPT|STYLE)$/.test(p.nodeName)) return false;
+        if (p.classList && p.classList.contains('tkey')) return false;
       }
       return true;
     }
@@ -168,8 +223,8 @@
     function store_() { return cur ? (cur.hl = cur.hl || {}) : null; }
     function placeTip(rect, label, cls) {
       tip.textContent = label; tip.className = 'hltip ' + (cls || '');
-      tip.style.left = (rect.left + rect.width / 2 + window.scrollX) + 'px';
-      tip.style.top = (rect.top + window.scrollY) + 'px';
+      tip.style.left = (rect.left + rect.width / 2) + 'px';
+      tip.style.top = rect.top + 'px';
       tip.hidden = false;
     }
     function hide() { tip.hidden = true; pending = null; }
@@ -205,7 +260,7 @@
         placeTip(m.getBoundingClientRect(), 'Bỏ tô sáng', 'remove');
       } else if (!tip.hidden && (!window.getSelection() || window.getSelection().isCollapsed)) hide();
     });
-    window.addEventListener('scroll', function () { if (pending && pending.kind === 'remove') hide(); }, { passive: true });
+    document.addEventListener('scroll', function () { if (pending) hide(); }, { passive: true, capture: true });
     tip.addEventListener('mousedown', function (e) { e.preventDefault(); });
     tip.addEventListener('click', function () {
       if (!pending) return;
@@ -353,7 +408,7 @@
     $('#btnSubmit').hidden = false; $('#btnCloseReview').hidden = true; $('#btnClearHl').hidden = false;
     $('#outStat').hidden = false;
     setDisabled(false); writeAnswers(cur.answers); HL.applyAll(cur.hl);
-    updOut(); show('examScreen'); $$('#examBody .rwin').forEach(autoGrow); startTimer();
+    updOut(); show('examScreen'); showView(cur.view || 0); startTimer();
     if (cur.deadline <= Date.now()) submit(true);
   }
 
@@ -392,7 +447,7 @@
     return {
       action: 'submit', exam: CORE.EXAM_ID, sid: e.aid, name: P.name, cls: P.cls,
       startedAt: e.startedAt, submittedAt: e.at, durationSec: e.dur, timeUp: e.timeUp,
-      answers: e.answers, out: e.out, ua: navigator.userAgent.slice(0, 160)
+      answers: e.answers, out: e.out, hl: e.hl || {}, ua: navigator.userAgent.slice(0, 160)
     };
   }
   function send(entry, quiet) {
@@ -405,7 +460,7 @@
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (!res || !res.ok) throw new Error((res && res.error) || 'Máy chủ không nhận bài');
-        entry.result = { correct: res.correct, score: res.score, parts: res.parts, sections: res.sections };
+        entry.result = { correct: res.correct, half: res.half || 0, score: res.score, parts: res.parts, sections: res.sections };
         if (res.attemptNo) entry.serverNo = res.attemptNo;
         entry.sent = true; entry.err = null; saveStore();
       })
@@ -444,12 +499,12 @@
     } else {
       var R = e.result, best = bestOf(P);
       h += '<div class="rtop">' + ring(R.score) + '<div class="rinfo"><h2>Kết quả lần làm thứ ' + e.no + '</h2>' +
-        '<p class="big">Số câu đúng: <b>' + R.correct + '/100</b></p>' +
+        '<p class="big">Số câu đúng: <b>' + R.correct + '/100</b>' + (R.half ? ' <span class="muted">+ ' + R.half + ' câu được nửa điểm</span>' : '') + '</p>' +
         '<p class="big">Điểm: <b>' + fmtScore(R.score) + '/20</b>' + (best && best.aid === e.aid && P.history.filter(function (x) { return x.result; }).length > 1 ? '<span class="badge">Cao nhất</span>' : '') + '</p>' +
         '<p class="muted">Thời gian làm: ' + fmtDur(e.dur) + (e.timeUp ? ' (hết giờ)' : '') + ' · Rời màn hình: <b' + (e.out.n ? ' style="color:var(--warn)"' : '') + '>' + e.out.n + ' lần</b></p></div></div>';
       h += '<div class="parts">' + CORE.PARTS.map(function (p) {
         var x = R.parts[p.id] || { correct: 0, total: p.to - p.from + 1, score: 0 };
-        return '<div class="pbox"><div class="pn">' + p.name.replace('–', '·') + '</div><div class="ps">' + fmtScore(x.score) + '<small class="muted">/' + p.max + '</small></div><div class="pc">' + x.correct + '/' + x.total + ' câu đúng</div></div>';
+        return '<div class="pbox"><div class="pn">' + p.name.replace('–', '·') + '</div><div class="ps">' + fmtScore(x.score) + '<small class="muted">/' + p.max + '</small></div><div class="pc">' + x.correct + '/' + x.total + ' câu đúng' + (x.half ? ', ' + x.half + ' nửa' : '') + '</div></div>';
       }).join('') + '</div>';
       if (CFG.SHOW_SECTION_DETAIL !== false && R.sections) {
         h += '<table class="secs">' + R.sections.map(function (s) {
@@ -508,12 +563,148 @@
       (e.result ? e.result.correct + '/100 câu đúng · <b>' + fmtScore(e.result.score) + '/20</b>' : 'chưa chấm') +
       ' · rời màn hình ' + e.out.n + ' lần. <span class="muted">Đây là bài làm của bạn; đáp án không được hiển thị.</span>';
     writeAnswers(e.answers); setDisabled(true); HL.applyAll(e.hl || {});
-    show('examScreen'); $$('#examBody .rwin').forEach(autoGrow);
+    show('examScreen'); showView(0);
   }
   $('#btnCloseReview').onclick = function () { document.body.classList.remove('reviewing'); if (reviewFrom) showResult(reviewFrom); };
 
+  /* ---------- CHẾ ĐỘ GIÁO VIÊN: xem bài làm của HS ngay trên tờ đề ---------- */
+  var T = null, wrongPtr = 0;
+  var ICON_OK = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var ICON_BAD = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 6.5l7 7M13.5 6.5l-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
+  function tEff(q) { var o = T.ov[q]; return o === 0 || o === 0.5 || o === 1 ? o : (T.auto[q] || 0); }
+  function tManual(q) { var o = T.ov[q]; return o === 0 || o === 0.5 || o === 1; }
+  var ICON_HALF = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M10 4a6 6 0 0 1 0 12z" fill="currentColor"/></svg>';
+  function tLabel(v, blank) { return v === 1 ? 'Đúng' : v === 0.5 ? 'Nửa điểm' : (blank ? 'Bỏ trống' : 'Sai'); }
+  function teacherLoad(sid, k) {
+    mode = 'teacher'; T = null;
+    document.body.classList.add('reviewing', 'teacher');
+    $('#timer').hidden = true; $('#btnSubmit').hidden = true; $('#btnClearHl').hidden = true; $('#btnCloseReview').hidden = true;
+    $('#outStat').hidden = true; $$('.tonly').forEach(function (b) { b.hidden = false; });
+    $('#reviewTag').hidden = false; $('#reviewTag').textContent = 'Đang tải…';
+    $('#tbName').textContent = ''; $('#tbClass').textContent = '';
+    $('#reviewBanner').hidden = false; $('#reviewBanner').innerHTML = '<div class="spinner"></div><p style="text-align:center">Đang tải bài làm…</p>';
+    show('examScreen'); showView(0);
+    if (!CFG.API_URL || /PASTE_/.test(CFG.API_URL)) { $('#reviewBanner').textContent = 'Chưa cấu hình API_URL trong config.js.'; return; }
+    fetch(CFG.API_URL + '?api=review&sid=' + encodeURIComponent(sid) + '&k=' + encodeURIComponent(k), { redirect: 'follow' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) throw new Error((d && d.error) || 'Không đọc được dữ liệu');
+        T = d; T.k = k; wrongPtr = 0;
+        try { history.replaceState(null, '', location.pathname + '?xem=' + encodeURIComponent(sid) + '&k=' + encodeURIComponent(k)); } catch (e) {}
+        document.title = 'Bài làm – ' + d.name;
+        teacherRender();
+      })
+      .catch(function (err) {
+        $('#reviewTag').textContent = 'Lỗi';
+        $('#reviewBanner').innerHTML = '<b>Không tải được bài làm.</b> ' + esc(err.message || err) + '<br><span class="muted">Kiểm tra lại link "Xem bài" trong Google Sheet (link phải đủ cả phần <code>&amp;k=…</code>).</span>';
+      });
+  }
+  function teacherRender() {
+    $('#tbName').textContent = T.name;
+    $('#tbClass').textContent = T.cls + ' · lần ' + T.no;
+    writeAnswers(T.answers); setDisabled(true); HL.applyAll(T.hl || {});
+    $$('#examBody .tmk, #examBody .tkey, #examBody .tres, #ecKeys').forEach(function (x) { x.remove(); });
+    var ecHead = $('#examBody table.ec thead tr');
+    if (ecHead && !ecHead.querySelector('.tres')) ecHead.insertAdjacentHTML('beforeend', '<th class="tres">Chấm</th>');
+    var eg = $('#examBody table.ec tr.eg'); if (eg && !eg.querySelector('.tres')) eg.insertAdjacentHTML('beforeend', '<td class="tres"></td>');
+    for (var q = 1; q <= CORE.TOTAL_Q; q++) markQ(q);
+    var ecKeys = [];
+    for (var e = 26; e <= 30; e++) ecKeys.push((T.keys[e] || []).join(' / '));
+    var ecTable = $('#examBody table.ec');
+    if (ecTable) ecTable.insertAdjacentHTML('afterend', '<div id="ecKeys" class="tkey block"><b>Đáp án 26–30</b> (HS ghi theo thứ tự nào cũng được): ' + ecKeys.map(esc).join(' · ') + '</div>');
+    teacherBanner(); teacherScore();
+  }
+  function keyText(q) { return (T.keys[q] || []).join('  /  '); }
+  function markQ(q) {
+    var m = CORE.META[q], el = document.getElementById('q' + q); if (!el) return;
+    $$('[data-tq="' + q + '"]', el).forEach(function (x) { x.remove(); });
+    if (el.tagName === 'TR') $$('.tres', el).forEach(function (x) { x.remove(); });
+    var ok = tEff(q), blank = CORE.isBlank(q, T.answers[q]), man = tManual(q);
+    var st = ok === 1 ? 'ok' : ok === 0.5 ? 'half' : (blank ? 'blank' : 'bad');
+    var btn = '<button type="button" class="tmk ' + st + (man ? ' manual' : '') + '" data-tq="' + q + '" title="Bấm để chấm tay câu ' + q + ' (Đúng → Nửa điểm → Sai)">' +
+      (ok === 1 ? ICON_OK : ok === 0.5 ? ICON_HALF : ICON_BAD) + '<span>' + tLabel(ok, blank) + '</span>' + (man ? '<i>chấm tay</i>' : '') + '</button>';
+    var key = ok === 1 ? '' : '<span class="tkey" data-tq="' + q + '">Đáp án: <b>' + esc(keyText(q)) + '</b></span>';
+    $$('input, textarea', el).forEach(function (f) { f.classList.remove('r-ok', 'r-half', 'r-bad'); if (f.value && f.type !== 'radio') f.classList.add(ok === 1 ? 'r-ok' : ok === 0.5 ? 'r-half' : 'r-bad'); });
+    if (m.type === 'choice' && el.querySelector('input[type=radio]')) {
+      var ks = (T.keys[q] || []).map(function (x) { return String(x).toUpperCase(); });
+      $$('label.ch', el).forEach(function (l) {
+        var inp = l.querySelector('input');
+        l.classList.toggle('is-key', ks.indexOf(inp.value.toUpperCase()) >= 0);
+        l.classList.toggle('pick-ok', inp.checked && !!ok);
+        l.classList.toggle('pick-bad', inp.checked && !ok);
+      });
+      el.insertAdjacentHTML(el.querySelector('.choices.word') ? 'beforeend' : 'afterbegin', btn);
+    } else if (m.type === 'choice') {
+      var s = el.querySelector('input.letter'); s.insertAdjacentHTML('afterend', btn + key);
+    } else if (m.type === 'ec') {
+      el.insertAdjacentHTML('beforeend', '<td class="tres">' + btn + '</td>');
+    } else if (m.type === 'rw') {
+      el.insertAdjacentHTML('afterbegin', btn);
+      if (key) el.insertAdjacentHTML('beforeend', '<div class="tkey block" data-tq="' + q + '">Đáp án (phần điền): <b>' + esc(keyText(q)) + '</b></div>');
+    } else {
+      var inp2 = el.querySelector('input'); inp2.insertAdjacentHTML('afterend', btn + key);
+    }
+  }
+  function teacherScore() {
+    var s = T.sum;
+    $('#reviewTag').innerHTML = '<b>' + fmtScore(s.score) + '</b>/20 · ' + s.correct + ' câu đúng' + (s.half ? ' · ' + s.half + ' nửa điểm' : '');
+    var tp = $('#tParts');
+    if (tp) tp.innerHTML = CORE.PARTS.map(function (p) { var x = s.parts[p.id]; return '<span class="chip">Part ' + p.id + ': <b>' + fmtScore(x.score) + '</b>/' + p.max + ' <span class="muted">(' + x.correct + '/' + x.total + (x.half ? ', ' + x.half + ' nửa' : '') + ')</span></span>'; }).join('');
+    $$('#palGrid a').forEach(function (l) {
+      var q = +l.dataset.p, ok = tEff(q), blank = CORE.isBlank(q, T.answers[q]);
+      l.classList.remove('done'); l.classList.toggle('t-ok', ok === 1); l.classList.toggle('t-half', ok === 0.5); l.classList.toggle('t-bad', !ok && !blank); l.classList.toggle('t-blank', !ok && blank);
+    });
+    VIEWS.forEach(function (v, i) {
+      var f = +v.dataset.from, t = +v.dataset.to, pts = 0;
+      for (var q = f; q <= t; q++) pts += tEff(q);
+      var b = $$('#secNav .sn')[i], r = pts / (t - f + 1);
+      b.querySelector('.snc').textContent = String(pts).replace('.', ',') + '/' + (t - f + 1);
+      b.classList.remove('full', 'some'); b.classList.toggle('t-good', r >= 0.8); b.classList.toggle('t-mid', r >= 0.5 && r < 0.8); b.classList.toggle('t-bad', r < 0.5);
+    });
+  }
+  function teacherBanner() {
+    var h = '<div class="tb-row"><div><div class="tb-name">' + esc(T.name) + ' <span class="muted">– lần ' + esc(T.no) + '</span></div>' +
+      '<div class="muted">' + esc(T.cls) + ' · nộp lúc ' + esc(T.time) + ' · làm trong ' + esc(T.dur) + ' phút' + (T.timeUp ? ' (hết giờ, tự nộp)' : '') + '</div></div>' +
+      '<div class="tb-nav"><button class="btn small ghost" id="tPrev"' + (T.prev ? '' : ' disabled') + '>&larr; Bài trước</button><button class="btn small ghost" id="tNext"' + (T.next ? '' : ' disabled') + '>Bài sau &rarr;</button></div></div>' +
+      '<div class="tb-parts" id="tParts"></div>' +
+      '<div class="tb-row2"><span class="' + (T.outN ? 'warnc' : '') + '">Rời màn hình: <b>' + esc(T.outN) + ' lần</b> · ' + esc(T.outS) + ' giây</span>' +
+      '<span class="legend2"><i class="lg ok"></i>Đúng <i class="lg half"></i>Nửa điểm <i class="lg bad"></i>Sai <i class="lg key"></i>Đáp án đúng <i class="lg hl"></i>HS tô sáng</span></div>';
+    if (T.outLog && T.outLog.length) {
+      h += '<details class="tlog"><summary>Nhật ký rời màn hình (' + T.outLog.length + ')</summary><ol>' + T.outLog.map(function (x) {
+        return '<li>' + esc(x.t) + ' – ' + esc(x.type) + ' – ' + esc(x.s) + ' giây</li>';
+      }).join('') + '</ol></details>';
+    }
+    h += '<p class="muted tnote">Bấm vào nút kết quả cạnh mỗi câu để chấm tay (Đúng → Nửa điểm → Sai); điểm trong Google Sheet cập nhật luôn.</p>';
+    $('#reviewBanner').innerHTML = h;
+    $('#tPrev').onclick = function () { if (T.prev) teacherLoad(T.prev, T.k); };
+    $('#tNext').onclick = function () { if (T.next) teacherLoad(T.next, T.k); };
+  }
+  $('#examBody').addEventListener('click', function (ev) {
+    var b = ev.target.closest && ev.target.closest('.tmk'); if (!b || mode !== 'teacher' || !T) return;
+    ev.preventDefault();
+    var q = +b.dataset.tq, c = tEff(q), val = c === 1 ? 0.5 : c === 0.5 ? 0 : 1;
+    if (val === (T.auto[q] || 0)) val = null;
+    b.disabled = true; b.classList.add('busy');
+    fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action: 'override', sid: T.sid, k: T.k, q: q, val: val }), redirect: 'follow' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'lỗi');
+        T.ov = res.ov || {}; T.sum = res.sum; markQ(q); teacherScore();
+        toast('Câu ' + q + ': ' + tLabel(tEff(q), false) + '. Điểm mới ' + fmtScore(T.sum.score) + '/20.');
+      })
+      .catch(function (err) { b.disabled = false; b.classList.remove('busy'); toast('Không lưu được: ' + (err.message || err)); });
+  });
+  $('#btnNextWrong').onclick = function () {
+    if (!T) return;
+    var list = []; for (var q = 1; q <= 100; q++) if (tEff(q) < 1) list.push(q);
+    if (!list.length) { toast('Không có câu sai.'); return; }
+    var q2 = list[wrongPtr % list.length]; wrongPtr++;
+    goToQ(q2);
+  };
+
   /* ---------- khởi động ---------- */
-  refreshStart();
-  retryPending();
+  var QS = new URLSearchParams(location.search);
+  if (QS.get('xem') && QS.get('k')) teacherLoad(QS.get('xem'), QS.get('k'));
+  else { refreshStart(); retryPending(); }
   window.addEventListener('beforeunload', function (e) { if (mode === 'doing') { e.preventDefault(); e.returnValue = ''; } });
 })();
