@@ -589,9 +589,14 @@
       document.head.appendChild(s);
     });
   }
+  /* Gọi bằng POST (giống lúc nộp bài – không bị lỗi khi trình duyệt đăng nhập nhiều tài khoản Google); nếu hỏng mới thử JSONP */
   function apiGet(params) {
+    var body = { action: params.api };
+    Object.keys(params).forEach(function (k) { if (k !== 'api') body[k] = params[k]; });
+    if (body.val === '' || body.val === undefined) body.val = null;
     var url = CFG.API_URL + '?' + Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k] == null ? '' : params[k]); }).join('&');
-    return fetch(url, { redirect: 'follow' }).then(function (r) { return r.json(); })
+    return fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' })
+      .then(function (r) { return r.json(); })
       .catch(function () { return jsonp(url); });
   }
 
